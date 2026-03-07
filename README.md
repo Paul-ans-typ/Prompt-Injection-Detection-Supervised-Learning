@@ -14,7 +14,7 @@ This project focuses on building a robust defense layer for LLM-integrated appli
 * **Comparative Analysis:** Evaluating the trade-offs between "traditional ML" and "deep learning" in terms of accuracy, latency, and computational cost.
 * **Actionable Metrics:** Measuring success through Precision, Recall, and F1-score to ensure minimal "false positives" (blocking legitimate users).
 
-### 🛠️ Tech Stack
+### Tech Stack
 
 * **Language:** Python
 * **ML/DL:** PyTorch, Hugging Face Transformers, Scikit-learn
