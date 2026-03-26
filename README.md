@@ -1,21 +1,18 @@
-# Detection of Prompt Injection Attacks in LLM-Based Software Services Using Supervised Machine Learning
+# Detection of Prompt Injection Attacks in LLM-Based Software Services
 
-## Project Overview
+## Overview
 
-Large Language Models (LLMs) are increasingly embedded in software services such as customer support chatbots, document assistants, and code-generation tools. While these systems improve usability and automation, they introduce new security risks, particularly prompt injection attacks.
+Large Language Models (LLMs) embedded in software services (like customer support chatbots and code-generation tools) introduce new security risks, most notably **prompt injection attacks**. In these attacks, malicious users craft inputs that override system instructions, bypass safety controls, or extract sensitive information.
 
-This project focuses on the offline detection of prompt injection attacks in LLM-integrated software services. By framing this as a binary text classification problem (benign vs. malicious), we implement, evaluate, and compare two supervised machine learning approaches:
+This project implements an offline, supervised machine learning pipeline to detect these text-based prompt injection attacks. It establishes a traditional machine learning baseline and compares it against a fine-tuned Deep Learning approach to classify prompts as either benign or malicious.
 
-1. **Baseline Model:** TF-IDF feature extraction combined with Logistic Regression.
-2. **Deep Learning Model:** A pre-trained Transformer model (BERT-based) fine-tuned for sequence classification.
+## Dataset
 
-Performance is evaluated using standard classification metrics including accuracy, precision, recall, and F1-score to determine the trade-offs between computational cost and detection robustness.
+This project uses the **Malicious Prompt Detection Dataset (MPDD)**.
 
-## Project Team
-
-* **Group Leader:** Maulik Jadav
-* **Deputy Leader:** Vatsal Nirmal
-* **Group Members:** Josie Lorenz, Anish Paul Singareddy, Mani Sindhu Vemaraju, Shivasmaran Rajashekar, Tawanda Nyagumbo, Mohammad Jani Basha Shaik
+* **Size:** 39,234 text prompts.
+* **Class Balance:** Perfectly balanced (50% Benign, 50% Malicious).
+* **Format:** Binary classification (`isMalicious` label).
 
 ## Repository Structure
 
@@ -27,76 +24,94 @@ prompt-injection-detection/
 ├── requirements.txt         # Python dependencies
 │
 ├── data/                    # Ignored by Git
-│   ├── raw/                 # Raw dataset downloaded from Kaggle
-│   └── processed/           # Cleaned and tokenized data ready for modeling
+│   ├── raw/                 # Raw MPDD.csv dataset
+│   └── processed/           # 80/10/10 Train/Val/Test splits
 │
-├── models/                  # Ignored by Git (Saved model weights)
+├── models/                  # Ignored by Git (Saved model weights & vectorizers)
 │
-├── notebooks/               # Jupyter notebooks for EDA and prototyping
+├── notebooks/               # Jupyter notebooks for EDA and evaluation visuals
 │
 └── src/                     # Core Python scripts
-    └── download_data.py     # Script to securely download the dataset
+    ├── download_data.py     # Script to securely download the dataset
+    ├── preprocess.py        # Data cleaning and train/test splitting
+    ├── train_baseline.py    # TF-IDF + Logistic Regression training
+    ├── train_bert.py        # BERT fine-tuning using PyTorch
+    └── evaluate.py          # Model comparison and confusion matrix generation
+
 ```
 
-## Environment Setup
+## Models Implemented
 
-It is highly recommended to run this project within an isolated Conda environment, particularly when deploying on a High-Performance Computing (HPC) cluster.
+1. **Baseline Model (TF-IDF + Logistic Regression):** Chosen for its lightweight footprint, interpretability, and speed. Uses a 10,000 max-feature TF-IDF vectorizer.
+2. **Deep Learning Model (BERT):** A `bert-base-uncased` transformer model fine-tuned for sequence classification. Trained using PyTorch with an AdamW optimizer.
 
-**1. Clone the repository:**
+## Results & Evaluation
 
+Both models were evaluated on an unseen test set of 3,924 prompts.
+
+* **Logistic Regression Baseline:**
+* Achieved ~95.2% overall accuracy.
+* **False Negatives:** 145
+* **False Positives:** 44
+
+
+* **Fine-Tuned BERT:**
+* Achieved ~97.5% overall accuracy.
+* **False Negatives:** 37
+* **False Positives:** 62
+
+
+
+**Key Takeaway:** While the Logistic Regression baseline performed surprisingly well, the BERT model is significantly better suited for security contexts. BERT reduced False Negatives (actual malicious prompts that slipped through undetected) by nearly 75% compared to the baseline. In a security environment, minimizing False Negatives is critical to preventing successful prompt injection attacks.
+
+## How to Run
+
+1. **Environment Setup:**
 ```bash
-git clone git@github.com:YourUsername/prompt-injection-detection.git
-cd prompt-injection-detection
-```
-
-**2. Create and activate the Conda environment:**
-
-```bash
-module load anaconda3  # Use the specific module load command for your HPC
-conda create -n prompt_env python=3.10
-conda activate prompt_env
-```
-
-**3. Install the required dependencies:**
-
-```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
 pip install -r requirements.txt
+
 ```
 
-## Data Acquisition
 
-*Note: The project proposal initially cited the MalPID dataset. As the authors did not publicly release that dataset, this implementation utilizes the [Malicious Prompt Detection Dataset (MPDD)](https://www.kaggle.com/datasets/mohammedaminejebbar/malicious-prompt-detection-dataset-mpdd), a balanced dataset of ~40,000 prompts aggregated from real-world prompt injection benchmarks.*
-
-To download the data automatically using the provided script, you must configure your Kaggle API credentials.
-
-**1. Generate a Kaggle API Token:**
-
-* Log into Kaggle.com.
-* Navigate to **Settings** -> **API** -> **Generate New Token**.
-* Copy the provided token string.
-
-**2. Configure the local environment variables:**
-
-* In the root directory of this project, duplicate the example environment file:
-
-  ```bash
-  cp .env.example .env
-  ```
-
-* Open the newly created `.env` file and replace the placeholder value with your copied token.
-* *Security Note: The `.env` file is explicitly ignored by Git to ensure your credentials remain local and secure.*
-
-**3. Execute the download script:**
-Ensure you are in the project root directory and your Conda environment is active, then run:
-
+2. **Download Data:**
+You will need your own Kaggle API key to download the dataset. Set up your `.env` file with your credentials (refer to `.env.example`), then run:
 ```bash
 python src/download_data.py
+
 ```
 
-This script will authenticate via the Kaggle API, download the MPDD dataset, and extract the CSV files into the `data/raw/` directory.
 
-## Next Steps (Current Project Stage)
+3. **Data Preprocessing:**
+Process the raw data and generate the train/val/test splits:
+```bash
+python src/preprocess.py
 
-* Exploratory Data Analysis (EDA) and text preprocessing.
-* Implementation of the TF-IDF + Logistic Regression baseline script.
-* Development of the BERT fine-tuning script for HPC GPU execution.
+```
+
+
+4. **Train Models:**
+```bash
+python src/train_baseline.py
+python src/train_bert.py
+
+```
+
+
+5. **Evaluate:**
+```bash
+python src/evaluate.py
+
+```
+
+
+
+## Future Work
+
+As this project expands, planned future improvements include:
+
+* **Real-time API Integration:** Wrapping the trained BERT model in a FastAPI or Flask application to serve as a middleware security layer for an actual LLM application.
+* **Testing on Unseen Attack Vectors:** Evaluating the model against newer, out-of-distribution jailbreak techniques (e.g., base64 encoding attacks, multi-language bypasses).
+* **Model Quantization:** Reducing the memory footprint of the BERT model using techniques like ONNX or TensorRT to decrease inference latency in production.
+* **Exploring Smaller LLMs for Detection:** Testing local, uncensored 7B/8B parameter models as few-shot classifiers to see if they outperform fine-tuned BERT representations.
