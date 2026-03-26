@@ -4,6 +4,7 @@ numpy
 
 # Machine Learning
 scikit-learn
+joblib
 
 # Deep Learning & NLP
 torch
@@ -11,10 +12,19 @@ transformers
 datasets
 accelerate
 evaluate
+peft
+bitsandbytes
+trl
 
 # Data Visualization
 matplotlib
 seaborn
+
+# API / Middleware
+fastapi
+uvicorn[standard]
+httpx
+aiosqlite
 
 # Utilities
 kaggle
@@ -22,3 +32,5 @@ tqdm
 jupyter
 ipykernel
 python-dotenv
+requests
+pyarrow

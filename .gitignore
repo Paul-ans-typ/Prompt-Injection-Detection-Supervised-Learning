@@ -1,6 +1,14 @@
 data/
 models/
+results/
+logs/
 __pycache__/
 *.pyc
 .env
 .ipynb_checkpoints/
+pkg_cache/
+COMMANDS.md
+frontend/node_modules/
+frontend/dist/
+prompt_inj/
+.claude/
