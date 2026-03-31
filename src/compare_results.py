@@ -53,13 +53,6 @@ MODEL_DISPLAY = {
     # RoBERTa
     "roberta-base":     "RoBERTa-base",
     "roberta-large":    "RoBERTa-large",
-    # QLoRA
-    "Qwen2.5-7B-Instruct":  "Qwen2.5-7B (QLoRA)",
-    "Qwen2.5-14B-Instruct": "Qwen2.5-14B (QLoRA)",
-    "Qwen2.5-32B-Instruct": "Qwen2.5-32B (QLoRA)",
-    "Qwen2.5-7B":            "Qwen2.5-7B (QLoRA)",
-    "Qwen2.5-14B":           "Qwen2.5-14B (QLoRA)",
-    "Qwen2.5-32B":           "Qwen2.5-32B (QLoRA)",
 }
 
 SPLIT_DISPLAY = {
@@ -69,15 +62,12 @@ SPLIT_DISPLAY = {
     "test_wildcard": "Wildcard (OOD)",
 }
 
-# Canonical model order for plots (baseline → transformer → LLM)
+# Canonical model order for plots (baseline → transformer)
 MODEL_ORDER = [
     "TF-IDF + LR (simple)",
     "TF-IDF + LR (enhanced)",
     "RoBERTa-base",
     "RoBERTa-large",
-    "Qwen2.5-7B (QLoRA)",
-    "Qwen2.5-14B (QLoRA)",
-    "Qwen2.5-32B (QLoRA)",
 ]
 
 SPLIT_ORDER = ["Validation", "Test (in-dist)", "Deepset (OOD)", "Wildcard (OOD)"]
@@ -100,7 +90,7 @@ def discover_metrics() -> list[tuple[str, Path]]:
     """
     Walk results/ and return (model_key, metrics_json_path) for every
     metrics JSON found.  Handles the different directory layouts used by
-    baseline, roberta, and qlora scripts.
+    baseline and roberta scripts.
     """
     found = []
 
@@ -116,13 +106,6 @@ def discover_metrics() -> list[tuple[str, Path]]:
     if roberta_dir.exists():
         for p in sorted(roberta_dir.glob("*/metrics.json")):
             key = p.parent.name   # e.g. "roberta-large"
-            found.append((key, p))
-
-    # --- QLoRA: results/qlora/<model-tag>/metrics.json
-    qlora_dir = RESULTS_DIR / "qlora"
-    if qlora_dir.exists():
-        for p in sorted(qlora_dir.glob("*/metrics.json")):
-            key = p.parent.name   # e.g. "Qwen2.5-7B-Instruct"
             found.append((key, p))
 
     return found

@@ -27,9 +27,11 @@ export async function fetchHealth() {
  * @param {string|null} sessionId  — pass null on first turn; backend auto-creates
  * @returns {Promise<{side_a, side_b, session_id}>}
  */
-export async function sendAbChat(messages, sideA, sideB, threshold = null, sessionId = null) {
+export async function sendAbChat(messagesA, messagesB, sideA, sideB, threshold = null, sessionId = null, signal = null) {
   const body = {
-    messages,
+    messages:   messagesA,   // fallback / used by older clients
+    messages_a: messagesA,
+    messages_b: messagesB,
     side_a: sideA,
     side_b: sideB,
     ...(threshold  !== null ? { threshold }            : {}),
@@ -39,6 +41,7 @@ export async function sendAbChat(messages, sideA, sideB, threshold = null, sessi
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
+    ...(signal ? { signal } : {}),
   })
   if (!r.ok) {
     const err = await r.text()
@@ -95,5 +98,59 @@ export async function renameSession(sessionId, title) {
 export async function deleteSession(sessionId) {
   const r = await fetch(`${BASE}/sessions/${sessionId}`, { method: 'DELETE' })
   if (!r.ok) throw new Error(`Delete failed: ${r.status}`)
+  return r.json()
+}
+
+// ── Ollama model management ──────────────────────────────────────────────────
+
+/**
+ * Pull an Ollama model and stream progress events back via SSE.
+ * @param {string} name  Model tag, e.g. 'llama3.1:8b'
+ * @param {(event: object) => void} onEvent  Called for each SSE progress event
+ * @param {AbortSignal} signal  Pass an AbortController.signal to cancel
+ */
+export async function pullModel(name, onEvent, signal) {
+  const r = await fetch(`${BASE}/ollama/pull`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ name }),
+    signal,
+  })
+  if (!r.ok) throw new Error(`Pull request failed: ${r.status}`)
+
+  const reader  = r.body.getReader()
+  const decoder = new TextDecoder()
+  let   buffer  = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      // SSE frames are separated by \n\n
+      const frames = buffer.split('\n\n')
+      buffer = frames.pop() ?? ''
+      for (const frame of frames) {
+        for (const line of frame.split('\n')) {
+          if (line.startsWith('data: ')) {
+            try { onEvent(JSON.parse(line.slice(6))) } catch { /* ignore malformed */ }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.cancel()
+  }
+}
+
+/**
+ * Delete a model from the local Ollama instance.
+ * @param {string} name  Model tag, e.g. 'llama3.2:3b'
+ */
+export async function deleteOllamaModel(name) {
+  const r = await fetch(`${BASE}/ollama/models/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+  if (!r.ok) throw new Error(`Delete failed (${r.status})`)
   return r.json()
 }

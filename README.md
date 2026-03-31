@@ -2,116 +2,152 @@
 
 ## Overview
 
-Large Language Models (LLMs) embedded in software services (like customer support chatbots and code-generation tools) introduce new security risks, most notably **prompt injection attacks**. In these attacks, malicious users craft inputs that override system instructions, bypass safety controls, or extract sensitive information.
+Large Language Models (LLMs) embedded in software services (customer support chatbots, code-generation tools, etc.) introduce new security risks — most notably **prompt injection attacks**. In these attacks, malicious users craft inputs that override system instructions, bypass safety controls, or extract sensitive information.
 
-This project implements an offline, supervised machine learning pipeline to detect these text-based prompt injection attacks. It establishes a traditional machine learning baseline and compares it against a fine-tuned Deep Learning approach to classify prompts as either benign or malicious.
+This project implements a full supervised machine learning pipeline to detect text-based prompt injection attacks, compares a traditional ML baseline against a fine-tuned deep learning model, and wraps the best detector in a production-ready FastAPI middleware with a React A/B-testing frontend.
+
+---
 
 ## Dataset
 
-This project uses the **Malicious Prompt Detection Dataset (MPDD)**.
+The training data is assembled from **five HuggingFace datasets** merged and deduplicated into a single binary-classification corpus (~450k prompts, 80/10/10 train/val/test split):
 
-* **Size:** 39,234 text prompts.
-* **Class Balance:** Perfectly balanced (50% Benign, 50% Malicious).
-* **Format:** Binary classification (`isMalicious` label).
+| Split | Rows (approx.) |
+|-------|---------------|
+| train | ~360k |
+| val   | ~45k  |
+| test  | ~45k  |
+| test_deepset | ~662 (held-out benchmark) |
+| test_wildcard | ~15k (held-out real-world) |
+
+Label: `isMalicious` — `0` benign / `1` malicious.
+
+---
+
+## Models
+
+| Model | Type | Notes |
+|-------|------|-------|
+| **Baseline** | TF-IDF (10k features) + Logistic Regression | CPU-only, ~5 min to train |
+| **RoBERTa-base** | Fine-tuned `roberta-base` | ~30 min on RTX 4090 |
+| **RoBERTa-large** | Fine-tuned `roberta-large` | ~90 min on RTX 4090 — recommended |
+
+Results (metrics, confusion matrices, ROC/PR curves) are saved to `results/` after training and can be viewed in the frontend under the **Results** tab.
+
+---
+
+## Architecture
+
+```
+Training pipeline
+  prepare_data.py  →  baseline.py  →  train_roberta.py  →  compare_results.py
+
+Serving stack
+  Browser (port 3000)
+    └─ Vite dev server  ──proxies──►  FastAPI  (port 8000)
+                                          ├─ Baseline detector   (models/model_enhanced.joblib)
+                                          ├─ RoBERTa detector    (models/roberta/roberta-large/)
+                                          └─ Ollama LLM backend  (port 11434)
+```
+
+---
 
 ## Repository Structure
 
-```text
+```
 prompt-injection-detection/
-├── .gitignore
 ├── .env.example             # Template for environment variables (Kaggle API key)
-├── README.md                # Project documentation
-├── requirements.txt         # Python dependencies
+├── README.md
+├── requirements.txt         # Full training + serving dependencies
+├── requirements.docker.txt  # Inference-only dependencies (used in Docker image)
+├── Dockerfile               # Multi-stage build: React frontend + FastAPI backend
+├── docker-compose.yml       # Ollama + app stack
 │
-├── data/                    # Ignored by Git
-│   ├── raw/                 # Raw MPDD.csv dataset
-│   └── processed/           # 80/10/10 Train/Val/Test splits
+├── docs/
+│   ├── COMMANDS.md          # Full step-by-step experiment guide
+│   ├── DOCKER.md            # Docker build, push, and deployment guide
+│   └── FRONTEND.md          # Local frontend setup guide
 │
-├── models/                  # Ignored by Git (Saved model weights & vectorizers)
+├── src/
+│   ├── prepare_data.py      # Download and merge datasets; generate splits
+│   ├── baseline.py          # TF-IDF + Logistic Regression training
+│   ├── train_roberta.py     # RoBERTa fine-tuning (base or large)
+│   ├── evaluate.py          # Model evaluation utilities
+│   ├── compare_results.py   # Aggregate metrics across all models and splits
+│   ├── api.py               # FastAPI middleware + A/B testing + OpenAI-compatible proxy
+│   └── database.py          # SQLite chat history
 │
-├── notebooks/               # Jupyter notebooks for EDA and evaluation visuals
+├── frontend/                # React + Vite A/B testing UI
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── api.js
+│   │   └── components/
+│   └── vite.config.js
 │
-└── src/                     # Core Python scripts
-    ├── download_data.py     # Script to securely download the dataset
-    ├── preprocess.py        # Data cleaning and train/test splitting
-    ├── train_baseline.py    # TF-IDF + Logistic Regression training
-    ├── train_bert.py        # BERT fine-tuning using PyTorch
-    └── evaluate.py          # Model comparison and confusion matrix generation
-
+├── data/                    # Ignored by Git — generated by prepare_data.py
+├── models/                  # Ignored by Git — saved weights and vectorizers
+├── results/                 # Ignored by Git — metrics, plots, comparison tables
+└── notebooks/               # Jupyter notebooks for EDA and evaluation
 ```
 
-## Models Implemented
+---
 
-1. **Baseline Model (TF-IDF + Logistic Regression):** Chosen for its lightweight footprint, interpretability, and speed. Uses a 10,000 max-feature TF-IDF vectorizer.
-2. **Deep Learning Model (BERT):** A `bert-base-uncased` transformer model fine-tuned for sequence classification. Trained using PyTorch with an AdamW optimizer.
+## Quick Start
 
-## Results & Evaluation
+### Option A — Docker (recommended, no Python/Node setup needed)
 
-Both models were evaluated on an unseen test set of 3,924 prompts.
-
-* **Logistic Regression Baseline:**
-* Achieved ~95.2% overall accuracy.
-* **False Negatives:** 145
-* **False Positives:** 44
-
-
-* **Fine-Tuned BERT:**
-* Achieved ~97.5% overall accuracy.
-* **False Negatives:** 37
-* **False Positives:** 62
-
-
-
-**Key Takeaway:** While the Logistic Regression baseline performed surprisingly well, the BERT model is significantly better suited for security contexts. BERT reduced False Negatives (actual malicious prompts that slipped through undetected) by nearly 75% compared to the baseline. In a security environment, minimizing False Negatives is critical to preventing successful prompt injection attacks.
-
-## How to Run
-
-1. **Environment Setup:**
 ```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+docker compose up
+```
+
+Open **http://localhost:8000/app**, go to the **Models** tab, and pull an Ollama model.
+
+> Requires trained model weights in `models/` before building the image. See [docs/DOCKER.md](docs/DOCKER.md).
+
+### Option B — Local development
+
+```bash
+# 1. Install dependencies
 pip install -r requirements.txt
 
+# 2. Download and process datasets
+cp .env.example .env   # add your Kaggle API token
+python src/prepare_data.py
+
+# 3. Train models
+python src/baseline.py
+python src/train_roberta.py --model roberta-large
+
+# 4. Start the stack (two terminals)
+uvicorn src.api:app --port 8000
+cd frontend && npm install && npm run dev
 ```
 
+Open **http://localhost:3000**.
 
-2. **Download Data:**
-You will need your own Kaggle API key to download the dataset. Set up your `.env` file with your credentials (refer to `.env.example`), then run:
-```bash
-python src/download_data.py
+See [docs/COMMANDS.md](docs/COMMANDS.md) for the full step-by-step guide including GPU training on a SLURM cluster.
 
+---
+
+## API
+
+The FastAPI server exposes an **OpenAI-compatible endpoint** — point any OpenAI SDK client at it without code changes:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:8000/v1", api_key="ignored")
+response = client.chat.completions.create(
+    model="mistral:7b",
+    messages=[{"role": "user", "content": "Explain gradient descent."}],
+)
+# Response headers include:
+#   X-Injection-Detected:    false
+#   X-Injection-Probability: 0.002
+#   X-Injection-Verdict:     safe
+#   X-Detector-Model:        roberta
 ```
 
+Blocked prompts return HTTP 200 with a blocked-message body (so SDK clients don't throw) and `X-Injection-Detected: true`.
 
-3. **Data Preprocessing:**
-Process the raw data and generate the train/val/test splits:
-```bash
-python src/preprocess.py
-
-```
-
-
-4. **Train Models:**
-```bash
-python src/train_baseline.py
-python src/train_bert.py
-
-```
-
-
-5. **Evaluate:**
-```bash
-python src/evaluate.py
-
-```
-
-
-
-## Future Work
-
-As this project expands, planned future improvements include:
-
-* **Real-time API Integration:** Wrapping the trained BERT model in a FastAPI or Flask application to serve as a middleware security layer for an actual LLM application.
-* **Testing on Unseen Attack Vectors:** Evaluating the model against newer, out-of-distribution jailbreak techniques (e.g., base64 encoding attacks, multi-language bypasses).
-* **Model Quantization:** Reducing the memory footprint of the BERT model using techniques like ONNX or TensorRT to decrease inference latency in production.
-* **Exploring Smaller LLMs for Detection:** Testing local, uncensored 7B/8B parameter models as few-shot classifiers to see if they outperform fine-tuned BERT representations.
+Interactive API docs: **http://localhost:8000/docs**

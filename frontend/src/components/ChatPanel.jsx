@@ -6,7 +6,6 @@ const DETECTOR_DESCRIPTIONS = {
   none:     'No detector — all prompts pass through',
   baseline: 'TF-IDF + Logistic Regression',
   roberta:  'Fine-tuned RoBERTa',
-  qlora:    'QLoRA Qwen2.5 (4-bit)',
 }
 
 const EXAMPLE_PROMPTS = [

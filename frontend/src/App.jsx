@@ -6,8 +6,9 @@ import {
 import ChatPanel from './components/ChatPanel'
 import ResultsPanel from './components/ResultsPanel'
 import SessionsSidebar from './components/SessionsSidebar'
+import ModelsPanel from './components/ModelsPanel'
 import {
-  ShieldIcon, MessageSquareIcon, BarChartIcon,
+  ShieldIcon, MessageSquareIcon, BarChartIcon, PackageIcon,
   SlidersIcon, ServerIcon, TrashIcon, AlertTriangleIcon, XIcon,
   SunIcon, MoonIcon, SyncScrollIcon,
 } from './components/Icons'
@@ -15,16 +16,19 @@ import {
 const DEFAULT_SIDE_A = { detector: 'none',    llm: 'mistral:7b', label: 'Unprotected' }
 const DEFAULT_SIDE_B = { detector: 'roberta', llm: 'mistral:7b', label: 'Protected'   }
 
-// Reconstruct both message lists and shared history from a loaded session's exchanges
+// Reconstruct both message lists and per-side LLM histories from a loaded session.
+// Blocked turns are excluded from that side's history so the injection never
+// re-enters the model's context on future turns.
 function sessionToState(session) {
-  const messagesA    = []
-  const messagesB    = []
-  const sharedHistory = []
+  const messagesA = []
+  const messagesB = []
+  const historyA  = []
+  const historyB  = []
+
   for (const ex of session.exchanges) {
     const userMsg = { role: 'user', content: ex.user_text, type: 'user' }
     messagesA.push(userMsg)
     messagesB.push(userMsg)
-    sharedHistory.push({ role: 'user', content: ex.user_text })
 
     messagesA.push({
       role:        'assistant',
@@ -46,12 +50,19 @@ function sessionToState(session) {
       detect_ms:   ex.b_detect_ms,
       total_ms:    ex.b_total_ms,
     })
-    sharedHistory.push({
-      role:    'assistant',
-      content: ex.b_blocked ? (ex.a_response ?? '') : (ex.b_response ?? ''),
-    })
+
+    // Only include this turn in a side's LLM history if it wasn't blocked
+    if (!ex.a_blocked) {
+      historyA.push({ role: 'user',      content: ex.user_text       })
+      historyA.push({ role: 'assistant', content: ex.a_response ?? '' })
+    }
+    if (!ex.b_blocked) {
+      historyB.push({ role: 'user',      content: ex.user_text       })
+      historyB.push({ role: 'assistant', content: ex.b_response ?? '' })
+    }
   }
-  return { messagesA, messagesB, sharedHistory }
+
+  return { messagesA, messagesB, historyA, historyB }
 }
 
 export default function App() {
@@ -60,9 +71,10 @@ export default function App() {
   const [health,        setHealth]        = useState(null)
   const [sideAConfig,   setSideAConfig]   = useState(DEFAULT_SIDE_A)
   const [sideBConfig,   setSideBConfig]   = useState(DEFAULT_SIDE_B)
-  const [messagesA,     setMessagesA]     = useState([])
-  const [messagesB,     setMessagesB]     = useState([])
-  const [sharedHistory, setSharedHistory] = useState([])
+  const [messagesA, setMessagesA] = useState([])
+  const [messagesB, setMessagesB] = useState([])
+  const [historyA,  setHistoryA]  = useState([])   // LLM context for side A (blocked turns excluded)
+  const [historyB,  setHistoryB]  = useState([])   // LLM context for side B (blocked turns excluded)
   const [input,         setInput]         = useState('')
   const [loading,       setLoading]       = useState(false)
   const [error,         setError]         = useState(null)
@@ -83,8 +95,21 @@ export default function App() {
   const scrollRefA  = useRef(null)
   const scrollRefB  = useRef(null)
   const syncingRef  = useRef(false) // prevents scroll feedback loop
+  const abortRef    = useRef(null)  // AbortController for in-flight sendAbChat
 
   // ── Initialise ────────────────────────────────────────────────────────────
+  const refreshLlms = async () => {
+    try {
+      const llmData = await fetchLlms()
+      const all = new Map()
+      ;(llmData.installed   || []).forEach(m => all.set(m.name, { ...m, installed: true }))
+      ;(llmData.recommended || []).forEach(m => {
+        if (!all.has(m.name)) all.set(m.name, { ...m, installed: false })
+      })
+      setLlms([...all.values()])
+    } catch { /* non-fatal */ }
+  }
+
   useEffect(() => {
     Promise.all([fetchDetectors(), fetchLlms(), fetchHealth()])
       .then(([det, llmData, h]) => {
@@ -139,6 +164,10 @@ export default function App() {
   }
 
   // ── Send message ──────────────────────────────────────────────────────────
+  const handleStop = () => {
+    abortRef.current?.abort()
+  }
+
   const handleSend = async () => {
     const text = input.trim()
     if (!text || loading) return
@@ -147,15 +176,20 @@ export default function App() {
     setLoading(true)
     setError(null)
 
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+
     const userMsg = { role: 'user', content: text }
     setMessagesA(prev => [...prev, { ...userMsg, type: 'user' }])
     setMessagesB(prev => [...prev, { ...userMsg, type: 'user' }])
 
-    const history = [...sharedHistory, userMsg]
+    // Build per-side histories including the new user message
+    const nextHistoryA = [...historyA, { role: 'user', content: text }]
+    const nextHistoryB = [...historyB, { role: 'user', content: text }]
 
     try {
       const result = await sendAbChat(
-        history, sideAConfig, sideBConfig, threshold, activeSessionId
+        nextHistoryA, nextHistoryB, sideAConfig, sideBConfig, threshold, activeSessionId, ctrl.signal
       )
 
       setMessagesA(prev => [...prev, {
@@ -179,10 +213,14 @@ export default function App() {
         total_ms:    result.side_b.total_ms,
       }])
 
-      const assistantContent = result.side_b.blocked
-        ? result.side_a.response
-        : result.side_b.response
-      setSharedHistory([...history, { role: 'assistant', content: assistantContent }])
+      // Only add this turn to a side's history if it wasn't blocked —
+      // blocked prompts must never re-enter that side's LLM context.
+      if (!result.side_a.blocked) {
+        setHistoryA([...nextHistoryA, { role: 'assistant', content: result.side_a.response }])
+      }
+      if (!result.side_b.blocked) {
+        setHistoryB([...nextHistoryB, { role: 'assistant', content: result.side_b.response }])
+      }
 
       // Track the session the backend assigned (may be new on first turn)
       if (result.session_id && result.session_id !== activeSessionId) {
@@ -192,8 +230,16 @@ export default function App() {
       // Refresh sidebar
       loadSessions()
     } catch (err) {
-      setError(err.message)
+      if (err.name === 'AbortError') {
+        // Roll back the optimistically added user messages
+        setMessagesA(prev => prev.slice(0, -1))
+        setMessagesB(prev => prev.slice(0, -1))
+        setInput(text)
+      } else {
+        setError(err.message)
+      }
     } finally {
+      abortRef.current = null
       setLoading(false)
       inputRef.current?.focus()
     }
@@ -223,7 +269,8 @@ export default function App() {
   const handleClear = () => {
     setMessagesA([])
     setMessagesB([])
-    setSharedHistory([])
+    setHistoryA([])
+    setHistoryB([])
     setActiveSessionId(null)
     setError(null)
   }
@@ -233,10 +280,11 @@ export default function App() {
     if (id === activeSessionId) return
     try {
       const session = await fetchSession(id)
-      const { messagesA: mA, messagesB: mB, sharedHistory: hist } = sessionToState(session)
+      const { messagesA: mA, messagesB: mB, historyA: hA, historyB: hB } = sessionToState(session)
       setMessagesA(mA)
       setMessagesB(mB)
-      setSharedHistory(hist)
+      setHistoryA(hA)
+      setHistoryB(hB)
       setActiveSessionId(id)
       // Restore configs stored in the session
       if (session.a_config?.detector) setSideAConfig(session.a_config)
@@ -293,6 +341,13 @@ export default function App() {
             >
               <BarChartIcon size={13} />
               Results
+            </button>
+            <button
+              className={`nav-tab ${activeTab === 'models' ? 'nav-tab-active' : ''}`}
+              onClick={() => setActiveTab('models')}
+            >
+              <PackageIcon size={13} />
+              Models
             </button>
           </div>
         </div>
@@ -369,6 +424,9 @@ export default function App() {
       {/* ── Results tab ───────────────────────────────────────── */}
       {activeTab === 'results' && <ResultsPanel theme={theme} />}
 
+      {/* ── Models tab ────────────────────────────────────────── */}
+      {activeTab === 'models' && <ModelsPanel onPullSuccess={refreshLlms} />}
+
       {/* ── Chat tab ──────────────────────────────────────────── */}
       {activeTab === 'chat' && (
         <div className="chat-layout">
@@ -422,13 +480,19 @@ export default function App() {
                   rows={2}
                   disabled={loading}
                 />
-                <button
-                  className={`send-btn ${loading ? 'loading' : ''}`}
-                  onClick={handleSend}
-                  disabled={loading || !input.trim()}
-                >
-                  {loading ? <span className="spinner" /> : 'Send to Both'}
-                </button>
+                {loading ? (
+                  <button className="send-btn stop-btn" onClick={handleStop}>
+                    Stop
+                  </button>
+                ) : (
+                  <button
+                    className="send-btn"
+                    onClick={handleSend}
+                    disabled={!input.trim()}
+                  >
+                    Send to Both
+                  </button>
+                )}
               </div>
             </div>
           </div>

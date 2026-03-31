@@ -20,7 +20,7 @@ Usage:
   uvicorn src.api:app --host 0.0.0.0 --port 8000 --reload
 
 Environment variables (all optional):
-  DETECTOR_MODEL        Primary detector for /v1/chat/completions: baseline|roberta|qlora
+  DETECTOR_MODEL        Primary detector for /v1/chat/completions: baseline|roberta
   DETECTOR_MODEL_PATH   Override auto-detection path for primary detector
   DETECTOR_THRESHOLD    Default threshold (default: 0.5)
   DETECTOR_MAX_LENGTH   Tokenizer max length (default: 256)
@@ -101,10 +101,8 @@ RECOMMENDED_MODELS = [
     {"name": "openhermes:latest","vram_gb": 4.1, "params": "7B",  "safety": "low",      "note": "Fine-tuned Mistral, minimal safety training"},
     {"name": "llama3.2:3b",      "vram_gb": 2.0, "params": "3B",  "safety": "moderate", "note": "Small and fast"},
     {"name": "llama3.1:8b",      "vram_gb": 4.7, "params": "8B",  "safety": "moderate", "note": "Well-rounded, decent for demos"},
-    {"name": "qwen2.5:7b",       "vram_gb": 4.4, "params": "7B",  "safety": "moderate", "note": "Same family as the fine-tuned detector"},
     {"name": "gemma2:9b",        "vram_gb": 5.5, "params": "9B",  "safety": "moderate", "note": "Google Gemma 2"},
     {"name": "deepseek-r1:7b",   "vram_gb": 4.7, "params": "7B",  "safety": "moderate", "note": "Reasoning model — interesting injection behaviour"},
-    {"name": "qwen2.5:14b",      "vram_gb": 8.7, "params": "14B", "safety": "good",     "note": "Larger, safer — contrast with 7B"},
     {"name": "phi4:14b",         "vram_gb": 8.7, "params": "14B", "safety": "good",     "note": "Microsoft Phi-4 — strong safety training"},
 ]
 
@@ -122,10 +120,6 @@ def _auto_path(model_type: str) -> Optional[Path]:
         "roberta": [
             PROJECT_ROOT / "models" / "roberta" / "roberta-large",
             PROJECT_ROOT / "models" / "roberta" / "roberta-base",
-        ],
-        "qlora": [
-            PROJECT_ROOT / "models" / "qlora" / "Qwen2.5-7B-Instruct"  / "adapter",
-            PROJECT_ROOT / "models" / "qlora" / "Qwen2.5-14B-Instruct" / "adapter",
         ],
     }
     for path in candidates.get(model_type, []):
@@ -164,51 +158,11 @@ def _try_load_roberta(path: Path) -> Optional[DetectorState]:
         return None
 
 
-def _try_load_qlora(path: Path) -> Optional[DetectorState]:
-    try:
-        from peft import PeftConfig, PeftModel
-        from transformers import (
-            AutoModelForSequenceClassification,
-            AutoTokenizer,
-            BitsAndBytesConfig,
-        )
-        log.info(f"Loading QLoRA adapter from {path}")
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        peft_cfg = PeftConfig.from_pretrained(str(path))
-        base_id  = peft_cfg.base_model_name_or_path
-        use_bf16 = device.type == "cuda" and torch.cuda.is_bf16_supported()
-        compute_dtype = torch.bfloat16 if use_bf16 else (torch.float16 if device.type == "cuda" else torch.float32)
-        bnb = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=compute_dtype,
-            bnb_4bit_use_double_quant=True,
-        ) if device.type == "cuda" else None
-        base = AutoModelForSequenceClassification.from_pretrained(
-            base_id, num_labels=2, quantization_config=bnb,
-            device_map="auto" if device.type == "cuda" else None,
-            trust_remote_code=True,
-            torch_dtype=compute_dtype if bnb is None else None,
-            ignore_mismatched_sizes=True,
-        )
-        model = PeftModel.from_pretrained(base, str(path))
-        model.eval()
-        tokenizer = AutoTokenizer.from_pretrained(str(path), trust_remote_code=True, padding_side="right")
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token    = tokenizer.eos_token
-            tokenizer.pad_token_id = tokenizer.eos_token_id
-        return DetectorState(model_type="qlora", model=model, tokenizer=tokenizer, device=device)
-    except Exception as exc:
-        log.warning(f"QLoRA load failed: {exc}")
-        return None
-
-
 def load_all_detectors() -> None:
     """Try to load every available detector at startup and register them."""
     loaders = {
         "baseline": _try_load_baseline,
         "roberta":  _try_load_roberta,
-        "qlora":    _try_load_qlora,
     }
 
     for name, loader in loaders.items():
@@ -368,6 +322,8 @@ class SideConfig(BaseModel):
 
 class AbChatRequest(BaseModel):
     messages:   list[Message]
+    messages_a: Optional[list[Message]] = None  # per-side history; falls back to messages
+    messages_b: Optional[list[Message]] = None
     side_a:     SideConfig
     side_b:     SideConfig
     threshold:  Optional[float] = None
@@ -460,7 +416,6 @@ async def available_detectors():
             "description": {
                 "baseline": "TF-IDF + Logistic Regression",
                 "roberta":  "Fine-tuned RoBERTa",
-                "qlora":    "QLoRA Qwen2.5 (4-bit)",
             }.get(name, name),
         })
     return {"detectors": entries}
@@ -503,6 +458,119 @@ async def available_llms():
     }
 
 
+class PullRequest(BaseModel):
+    name: str = PydanticField(..., description="Model tag to pull, e.g. 'llama3.2:3b'")
+
+
+@app.post("/ollama/pull", summary="Pull an Ollama model — streams progress as SSE")
+async def ollama_pull(req: PullRequest):
+    """
+    Proxies the Ollama /api/pull stream back to the caller as Server-Sent Events.
+    Each SSE event is a JSON object:
+      { status, digest, total, completed, percent, speed_bps, eta_s }
+    The last event will have status='success' or status='error'.
+    """
+    ollama_base = LLM_API_URL.replace("/v1", "").rstrip("/")
+
+    async def event_stream():
+        prev_digest    = ""
+        prev_completed = 0
+        prev_time      = time.perf_counter()
+        smooth_speed   = 0.0   # bytes/sec — exponential moving average
+        alpha          = 0.3   # EMA factor
+
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                async with client.stream(
+                    "POST",
+                    f"{ollama_base}/api/pull",
+                    json={"name": req.name},
+                ) as resp:
+                    resp.raise_for_status()
+                    async for raw_line in resp.aiter_lines():
+                        if not raw_line.strip():
+                            continue
+                        try:
+                            data = json.loads(raw_line)
+                        except json.JSONDecodeError:
+                            continue
+
+                        status    = data.get("status", "")
+                        digest    = data.get("digest", "")
+                        total     = data.get("total", 0)
+                        completed = data.get("completed", 0)
+                        now       = time.perf_counter()
+
+                        # Each blob starts fresh — reset speed tracker on digest change
+                        if digest and digest != prev_digest:
+                            prev_digest    = digest
+                            prev_completed = 0
+                            prev_time      = now
+                            smooth_speed   = 0.0
+
+                        speed_bps = 0.0
+                        eta_s     = None
+                        percent   = 0.0
+
+                        if total > 0:
+                            percent = round(completed / total * 100, 1)
+
+                        dt = now - prev_time
+                        if dt > 0.2 and completed > prev_completed:
+                            instant      = (completed - prev_completed) / dt
+                            smooth_speed = (alpha * instant + (1 - alpha) * smooth_speed) if smooth_speed > 0 else instant
+                            speed_bps    = smooth_speed
+                            prev_completed = completed
+                            prev_time      = now
+                        elif smooth_speed > 0:
+                            speed_bps = smooth_speed
+
+                        if speed_bps > 0 and total > completed:
+                            eta_s = round((total - completed) / speed_bps)
+
+                        event = {
+                            "status":    status,
+                            "digest":    digest,
+                            "total":     total,
+                            "completed": completed,
+                            "percent":   percent,
+                            "speed_bps": round(speed_bps),
+                            "eta_s":     eta_s,
+                        }
+                        yield f"data: {json.dumps(event)}\n\n"
+
+            yield f"data: {json.dumps({'status': 'success'})}\n\n"
+
+        except Exception as exc:
+            log.warning(f"Ollama pull error for {req.name!r}: {exc}")
+            yield f"data: {json.dumps({'status': 'error', 'error': str(exc)})}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.delete("/ollama/models/{model_name:path}", summary="Delete an Ollama model")
+async def ollama_delete(model_name: str):
+    """Delete a model from the local Ollama instance."""
+    ollama_base = LLM_API_URL.replace("/v1", "").rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.request(
+                "DELETE",
+                f"{ollama_base}/api/delete",
+                json={"name": model_name},
+            )
+            resp.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(exc.response.status_code, f"Ollama delete failed: {exc.response.text}")
+    except Exception as exc:
+        raise HTTPException(500, f"Could not reach Ollama: {exc}")
+    return {"deleted": model_name}
+
+
 @app.post("/detect", response_model=DetectResponse, summary="Classify a single prompt")
 async def detect(req: DetectRequest):
     """Classify a prompt without forwarding to any LLM."""
@@ -526,13 +594,26 @@ async def ab_chat(req: AbChatRequest):
     """
     Send the same conversation to two different configurations simultaneously.
     Both sides run concurrently via asyncio.gather.
+    Supports per-side message histories via messages_a / messages_b so that
+    blocked prompts are never included in a side's future LLM context.
     """
-    user_msgs = [m for m in req.messages if m.role == "user"]
-    if not user_msgs:
-        raise HTTPException(400, "No user message found.")
-    screen_text = user_msgs[-1].content
+    # Per-side histories (fall back to shared messages if not provided)
+    msgs_a = req.messages_a or req.messages
+    msgs_b = req.messages_b or req.messages
 
-    async def run_side(cfg: SideConfig) -> SideResult:
+    user_msgs_a = [m for m in msgs_a if m.role == "user"]
+    user_msgs_b = [m for m in msgs_b if m.role == "user"]
+    if not user_msgs_a and not user_msgs_b:
+        raise HTTPException(400, "No user message found.")
+
+    # Screen text is always the latest user message on each side
+    screen_text_a = user_msgs_a[-1].content if user_msgs_a else ""
+    screen_text_b = user_msgs_b[-1].content if user_msgs_b else ""
+
+    # Use side B's screen text for the session title (or side A's as fallback)
+    screen_text = screen_text_b or screen_text_a
+
+    async def run_side(cfg: SideConfig, messages: list[Message], screen_text: str) -> SideResult:
         t_start = time.perf_counter()
         label   = cfg.label or cfg.detector
 
@@ -560,10 +641,10 @@ async def ab_chat(req: AbChatRequest):
                 total_ms=total_ms,
             )
 
-        # 2. Forward to LLM
+        # 2. Forward to LLM using this side's history
         payload = {
             "model":    cfg.llm,
-            "messages": [m.model_dump() for m in req.messages],
+            "messages": [m.model_dump() for m in messages],
             "stream":   False,
         }
         try:
@@ -591,7 +672,10 @@ async def ab_chat(req: AbChatRequest):
             total_ms=total_ms,
         )
 
-    side_a, side_b = await asyncio.gather(run_side(req.side_a), run_side(req.side_b))
+    side_a, side_b = await asyncio.gather(
+        run_side(req.side_a, msgs_a, screen_text_a),
+        run_side(req.side_b, msgs_b, screen_text_b),
+    )
 
     log.info(
         f"/ab/chat  A({req.side_a.detector}/{req.side_a.llm})={side_a.verdict}  "
@@ -792,40 +876,6 @@ def _scan_results() -> list[dict]:
             models.append({
                 "id":      f"roberta_{variant_dir.name}",
                 "label":   f"RoBERTa ({variant_dir.name})",
-                "metrics": metrics,
-                "images":  images,
-                "curves":  curves,
-            })
-
-    # ── QLoRA ────────────────────────────────────────────────────────────────
-    qlora_dir = results_dir / "qlora"
-    if qlora_dir.exists():
-        for variant_dir in sorted(qlora_dir.iterdir()):
-            if not variant_dir.is_dir():
-                continue
-            metrics_file = variant_dir / "metrics.json"
-            if not metrics_file.exists():
-                continue
-            metrics = json.loads(metrics_file.read_text())
-            confusions = []
-            for split in ("val", "test", "test_deepset"):
-                img = variant_dir / f"confusion_{split}.png"
-                if img.exists():
-                    confusions.append({"split": split, "url": f"/results/image/qlora/{variant_dir.name}/confusion_{split}.png"})
-            images = {}
-            for plot in ("roc", "pr"):
-                img = variant_dir / f"{plot}.png"
-                if img.exists():
-                    images[plot] = f"/results/image/qlora/{variant_dir.name}/{plot}.png"
-            if confusions:
-                images["confusions"] = confusions
-            curves = None
-            curves_file = variant_dir / "curves.json"
-            if curves_file.exists():
-                curves = json.loads(curves_file.read_text())
-            models.append({
-                "id":      f"qlora_{variant_dir.name}",
-                "label":   f"QLoRA ({variant_dir.name})",
                 "metrics": metrics,
                 "images":  images,
                 "curves":  curves,

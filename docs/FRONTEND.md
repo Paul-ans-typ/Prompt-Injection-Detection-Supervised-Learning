@@ -96,7 +96,6 @@ ollama serve
 # Pull at least one model (pick based on your VRAM)
 ollama pull llama3.2:3b      # ~2 GB  — lowest VRAM, good for testing
 ollama pull mistral:7b       # ~4 GB  — best for injection demos
-ollama pull qwen2.5:7b       # ~4 GB  — same family as the fine-tuned detector
 ```
 
 You can skip Ollama entirely — the `/detect` endpoint and A/B detection still work,
@@ -141,7 +140,7 @@ python src/compare_results.py
 | Left  | No detector (unprotected) | Raw LLM response |
 | Right | RoBERTa detector (protected) | Blocked or passed response |
 
-- **Detector dropdown** — swap between `none`, `baseline`, `roberta`, `qlora`
+- **Detector dropdown** — swap between `none`, `baseline`, `roberta`
 - **LLM dropdown** — populated from your locally installed Ollama models
 - **Threshold slider** — tune the detection confidence cutoff (0.0–1.0)
 - Blocked messages are highlighted in red with the confidence score
@@ -153,7 +152,7 @@ python src/compare_results.py
 Create a `.env` file in the project root to override defaults:
 
 ```bash
-DETECTOR_MODEL=roberta         # roberta | baseline | qlora
+DETECTOR_MODEL=roberta         # roberta | baseline
 DETECTOR_THRESHOLD=0.5
 LLM_API_URL=http://localhost:11434/v1
 LLM_MODEL=mistral:7b

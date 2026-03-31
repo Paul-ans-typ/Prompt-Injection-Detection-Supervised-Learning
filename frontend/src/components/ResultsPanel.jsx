@@ -209,8 +209,7 @@ export default function ResultsPanel({ theme = 'dark' }) {
 
           {/* Selected plot */}
           {currentPlot ? (
-            <div className="results-section">
-              <div className="results-section-title">{currentPlot.label}</div>
+            <div className="results-section results-section-plot">
               {renderPlot(currentPlot)}
             </div>
           ) : plotList.length === 0 && (

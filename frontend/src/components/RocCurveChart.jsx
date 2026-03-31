@@ -16,8 +16,6 @@ const SPLIT_LABELS = {
   test_deepset: 'Test (Deepset)',
 }
 
-// Recharts needs one unified array of {x, val_y, test_y, ...} for multi-line.
-// We downsample each curve to ≤200 pts for performance.
 function buildChartData(rocEntries) {
   if (!rocEntries?.length) return []
   const N = 200
@@ -27,7 +25,6 @@ function buildChartData(rocEntries) {
     for (const entry of rocEntries) {
       const fpr = entry.fpr
       const tpr = entry.tpr
-      // binary search closest fpr index
       let lo = 0, hi = fpr.length - 1
       while (lo < hi) {
         const mid = (lo + hi) >> 1
@@ -60,72 +57,87 @@ export default function RocCurveChart({ rocData, theme }) {
   if (!rocData?.length) return <div className="chart-empty">No ROC data available.</div>
 
   const chartData = buildChartData(rocData)
+  const axisColor = theme === 'light' ? '#64748b' : '#8b92a9'
+  const gridColor = theme === 'light' ? '#e2e8f0' : '#2a2d3e'
+  const diagColor = theme === 'light' ? '#94a3b8' : '#4a5068'
 
   return (
     <div className="chart-wrap">
-      <div className="chart-title">
-        ROC Curve
-        <span className="chart-subtitle">Receiver Operating Characteristic</span>
+      <div className="chart-header">
+        <span className="chart-label">Receiver Operating Characteristic</span>
       </div>
-      <ResponsiveContainer width="100%" height={340}>
-        <LineChart data={chartData} margin={{ top: 8, right: 24, bottom: 24, left: 8 }}>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke={theme === 'light' ? '#e2e8f0' : '#2a2d3e'}
-          />
-          <XAxis
-            dataKey="x"
-            type="number"
-            domain={[0, 1]}
-            tickCount={6}
-            tick={{ fill: theme === 'light' ? '#64748b' : '#8b92a9', fontSize: 11 }}
-            label={{ value: 'False Positive Rate', position: 'insideBottom', offset: -12, fill: theme === 'light' ? '#64748b' : '#8b92a9', fontSize: 12 }}
-          />
-          <YAxis
-            domain={[0, 1]}
-            tickCount={6}
-            tick={{ fill: theme === 'light' ? '#64748b' : '#8b92a9', fontSize: 11 }}
-            label={{ value: 'True Positive Rate', angle: -90, position: 'insideLeft', offset: 12, fill: theme === 'light' ? '#64748b' : '#8b92a9', fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend
-            formatter={(val) => SPLIT_LABELS[val] ?? val}
-            wrapperStyle={{ fontSize: 12, paddingTop: 8 }}
-          />
-          <ReferenceLine
-            x={0} y={0}
-            stroke={theme === 'light' ? '#94a3b8' : '#4a5068'}
-            strokeDasharray="4 4"
-          />
-          {/* diagonal random-classifier line */}
-          {[{ x: 0, diag: 0 }, { x: 1, diag: 1 }].length > 0 && (
+
+      <div className="chart-canvas-wrap">
+        <ResponsiveContainer width="100%" height={360}>
+          <LineChart
+            data={chartData}
+            margin={{ top: 12, right: 32, bottom: 48, left: 64 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+            <XAxis
+              dataKey="x"
+              type="number"
+              domain={[0, 1]}
+              tickCount={6}
+              tick={{ fill: axisColor, fontSize: 11 }}
+              label={{
+                value: 'False Positive Rate',
+                position: 'insideBottom',
+                offset: -28,
+                fill: axisColor,
+                fontSize: 11,
+              }}
+            />
+            <YAxis
+              domain={[0, 1]}
+              tickCount={6}
+              tick={{ fill: axisColor, fontSize: 11 }}
+              label={{
+                value: 'True Positive Rate',
+                angle: -90,
+                position: 'insideLeft',
+                offset: -42,
+                fill: axisColor,
+                fontSize: 11,
+              }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              formatter={(val) => SPLIT_LABELS[val] ?? val}
+              wrapperStyle={{ fontSize: 12, paddingTop: 4 }}
+            />
             <ReferenceLine
               segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]}
-              stroke={theme === 'light' ? '#94a3b8' : '#4a5068'}
+              stroke={diagColor}
               strokeDasharray="4 4"
-              label={{ value: 'Random', position: 'insideTopLeft', fill: theme === 'light' ? '#94a3b8' : '#4a5068', fontSize: 10 }}
+              label={{ value: 'Random', position: 'insideTopLeft', fill: diagColor, fontSize: 10 }}
             />
-          )}
-          {rocData.map(entry => (
-            <Line
-              key={entry.split}
-              type="monotone"
-              dataKey={entry.split}
-              stroke={SPLIT_COLORS[entry.split] ?? '#888'}
-              strokeWidth={hovered === null || hovered === entry.split ? 2.5 : 1}
-              opacity={hovered === null || hovered === entry.split ? 1 : 0.3}
-              dot={false}
-              activeDot={{ r: 4 }}
-              name={`${SPLIT_LABELS[entry.split] ?? entry.split} (AUC ${entry.auc?.toFixed(3) ?? '?'})`}
-              onMouseEnter={() => setHovered(entry.split)}
-              onMouseLeave={() => setHovered(null)}
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-      <div className="chart-auc-badges">
+            {rocData.map(entry => (
+              <Line
+                key={entry.split}
+                type="monotone"
+                dataKey={entry.split}
+                stroke={SPLIT_COLORS[entry.split] ?? '#888'}
+                strokeWidth={hovered === null || hovered === entry.split ? 2.5 : 1}
+                opacity={hovered === null || hovered === entry.split ? 1 : 0.3}
+                dot={false}
+                activeDot={{ r: 4 }}
+                name={`${SPLIT_LABELS[entry.split] ?? entry.split} (AUC ${entry.auc?.toFixed(3) ?? '?'})`}
+                onMouseEnter={() => setHovered(entry.split)}
+                onMouseLeave={() => setHovered(null)}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="chart-badges">
         {rocData.map(entry => (
-          <span key={entry.split} className="chart-badge" style={{ borderColor: SPLIT_COLORS[entry.split] ?? '#888' }}>
+          <span
+            key={entry.split}
+            className="chart-badge"
+            style={{ borderColor: SPLIT_COLORS[entry.split] ?? '#888' }}
+          >
             {SPLIT_LABELS[entry.split] ?? entry.split}: AUC {entry.auc?.toFixed(3) ?? '?'}
           </span>
         ))}

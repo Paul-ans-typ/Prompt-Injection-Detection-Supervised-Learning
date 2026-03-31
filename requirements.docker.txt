@@ -1,0 +1,19 @@
+# Inference-only dependencies for Docker
+# Training tools (bitsandbytes, peft, trl, accelerate) are intentionally excluded
+# torch is installed separately in the Dockerfile to get the CPU-only build
+
+pandas
+numpy
+scikit-learn
+joblib
+transformers
+fastapi
+uvicorn[standard]
+httpx
+aiosqlite
+pydantic==2.12.5
+pydantic-core==2.41.5
+python-dotenv
+requests
+pyarrow
+tqdm

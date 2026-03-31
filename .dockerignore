@@ -1,0 +1,42 @@
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Secrets
+.env
+.env.example
+
+# Node
+frontend/node_modules/
+frontend/.vite/
+
+# Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+*.egg-info/
+
+# Training-only data — not needed for inference
+data/raw/
+data/processed/
+
+# Runtime SQLite file — recreated by the app at startup
+data/chat_history.db
+
+# Training checkpoints — large, not needed for inference.
+# Only the final weights at models/roberta/roberta-large/ are copied.
+models/roberta/roberta-large/checkpoints/
+models/qlora/
+
+# Local dev scripts
+scripts/
+notebooks/
+check/
+
+# Misc
+*.log
+.DS_Store

@@ -280,6 +280,48 @@ export function CopyIcon(p) {
   )
 }
 
+export function DownloadIcon(p) {
+  return (
+    <Icon {...p}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+      <polyline points="7 10 12 15 17 10"/>
+      <line x1="12" y1="15" x2="12" y2="3"/>
+    </Icon>
+  )
+}
+
+export function RefreshCwIcon(p) {
+  return (
+    <Icon {...p}>
+      <polyline points="23 4 23 10 17 10"/>
+      <polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </Icon>
+  )
+}
+
+export function HardDriveIcon(p) {
+  return (
+    <Icon {...p}>
+      <line x1="22" y1="12" x2="2" y2="12"/>
+      <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+      <line x1="6" y1="16" x2="6.01" y2="16" strokeWidth="3"/>
+      <line x1="10" y1="16" x2="10.01" y2="16" strokeWidth="3"/>
+    </Icon>
+  )
+}
+
+export function PackageIcon(p) {
+  return (
+    <Icon {...p}>
+      <line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+      <line x1="12" y1="22.08" x2="12" y2="12"/>
+    </Icon>
+  )
+}
+
 export function SyncScrollIcon(p) {
   return (
     <Icon {...p}>

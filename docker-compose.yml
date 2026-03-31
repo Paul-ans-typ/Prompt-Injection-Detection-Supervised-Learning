@@ -1,0 +1,58 @@
+services:
+  # ── Ollama LLM backend ──────────────────────────────────────────────────────
+  # Uses the official image directly — no custom build needed.
+  # Pull models at runtime through the in-app Models tab.
+  # Downloaded models are stored in the ollama_data volume so they survive
+  # container restarts without re-downloading.
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── FastAPI app + React frontend ────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      LLM_API_URL: http://ollama:11434/v1
+      LLM_API_KEY: ollama
+      LLM_MODEL: llama3.2:3b
+      DETECTOR_MODEL: roberta
+      DETECTOR_THRESHOLD: "0.5"
+      BLOCK_ON_ERROR: "false"
+    volumes:
+      - chat_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  ollama_data:   # stores downloaded Ollama models
+  chat_data:     # stores SQLite chat history

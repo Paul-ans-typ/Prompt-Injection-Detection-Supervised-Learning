@@ -25,6 +25,8 @@ fastapi
 uvicorn[standard]
 httpx
 aiosqlite
+pydantic==2.12.5
+pydantic-core==2.41.5
 
 # Utilities
 kaggle
