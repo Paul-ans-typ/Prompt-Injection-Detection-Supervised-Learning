@@ -234,72 +234,15 @@ def load_deepset(offline: bool) -> pd.DataFrame:
 
 def load_verazuo(offline: bool) -> pd.DataFrame:
     """
-    verazuo/jailbreak_llms  (~15k samples, ACM CCS'24)
+    verazuo/jailbreak_llms  (~21k samples, ACM CCS'24)
     Real-world prompts scraped from Reddit, Discord, and jailbreak sites.
     Kept as a held-out wildcard generalization test set only.
     Label: 0 = regular prompt, 1 = jailbreak/malicious
+    
+    Note: Currently disabled. Will be re-enabled once a better model is trained.
     """
-    name = "verazuo"
-    cache_path = RAW_DIR / f"{name}.parquet"
-
-    if cache_path.exists():
-        log.info(f"[{name}] Loading from cache: {cache_path}")
-        return pd.read_parquet(cache_path)
-
-    if offline:
-        log.warning(f"[{name}] Offline mode — cache not found, skipping.")
-        return pd.DataFrame(columns=["text", "label", "source"])
-
-    log.info(f"[{name}] Attempting Hugging Face load...")
-    df = None
-
-    # Try HuggingFace first
-    try:
-        ds = load_dataset("verazuo/jailbreak_llms", split="train")
-        df = ds.to_pandas()
-    except Exception as e:
-        log.warning(f"[{name}] HF load failed ({e}), trying GitHub CSV...")
-
-    # Fall back to raw GitHub CSV
-    if df is None:
-        csv_url = (
-            "https://raw.githubusercontent.com/verazuo/jailbreak_llms"
-            "/main/data/jailbreak_prompts.csv"
-        )
-        try:
-            resp = requests.get(csv_url, timeout=60)
-            resp.raise_for_status()
-            from io import StringIO
-            df = pd.read_csv(StringIO(resp.text))
-        except Exception as e:
-            log.warning(f"[{name}] GitHub CSV download failed ({e}), skipping.")
-            return pd.DataFrame(columns=["text", "label", "source"])
-
-    log.info(f"[{name}] Columns available: {list(df.columns)}")
-
-    # Map columns — verazuo CSV has a 'jailbreak' boolean/int column
-    text_col = next(
-        (c for c in df.columns if c.lower() in ("prompt", "text", "content")),
-        df.columns[0],
-    )
-    label_col = next(
-        (c for c in df.columns if c.lower() in ("jailbreak", "label", "is_jailbreak")),
-        None,
-    )
-
-    if label_col is None:
-        log.warning(f"[{name}] Cannot find label column, skipping.")
-        return pd.DataFrame(columns=["text", "label", "source"])
-
-    out = pd.DataFrame({
-        "text":   df[text_col].astype(str),
-        "label":  pd.to_numeric(df[label_col], errors="coerce").fillna(0).astype(int),
-        "source": name,
-    })
-
-    out.to_parquet(cache_path, index=False)
-    log.info(f"[{name}] {len(out):,} rows  |  label dist: {out['label'].value_counts().to_dict()}")
-    return out
+    log.info("[verazuo] Wildcard dataset temporarily disabled.")
+    return pd.DataFrame(columns=["text", "label", "source"])
 
 
 # ---------------------------------------------------------------------------

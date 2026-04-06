@@ -1,0 +1,81 @@
+\contentsline {section}{\numberline {1}Introduction}{5}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Motivation and Background}{5}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Goals and Scope}{6}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Summary of accomplishments in the project}{7}{section.2}%
+\contentsline {section}{\numberline {3}Accomplishments of each group member}{9}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Maulik Jadav}{9}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Vatsal Nirmal}{9}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Josie Lorenz}{10}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Anish Paul Singareddy}{10}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Mani Sindhu Vemaraju}{11}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Tawanda Nyagumbo}{12}{subsection.3.6}%
+\contentsline {subsection}{\numberline {3.7}Mohammad Jani Basha Shaik}{12}{subsection.3.7}%
+\contentsline {subsection}{\numberline {3.8}Shivasmaran Rajashekar}{13}{subsection.3.8}%
+\contentsline {section}{\numberline {4}Detailed Results}{14}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Overview of Prompt Injection as an Information Assurance Threat}{14}{subsection.4.1}%
+\contentsline {subsubsection}{\numberline {4.1.1}Analyzing the Current Threat Landscape}{15}{subsubsection.4.1.1}%
+\contentsline {subsubsection}{\numberline {4.1.2}Identifying Vulnerabilities in LLM-Based Services}{16}{subsubsection.4.1.2}%
+\contentsline {subsubsection}{\numberline {4.1.3}Strategies for Enhancing Information Assurance}{16}{subsubsection.4.1.3}%
+\contentsline {subsection}{\numberline {4.2}Data Acquisition and Preprocessing Pipeline}{17}{subsection.4.2}%
+\contentsline {subsubsection}{\numberline {4.2.1}Pipeline Architecture and Software Engineering}{17}{subsubsection.4.2.1}%
+\contentsline {subsubsection}{\numberline {4.2.2}Dataset Sources and Rationale}{18}{subsubsection.4.2.2}%
+\contentsline {subsubsection}{\numberline {4.2.3}Schema Standardization and Normalization}{19}{subsubsection.4.2.3}%
+\contentsline {subsubsection}{\numberline {4.2.4}Deduplication and Leakage Prevention}{20}{subsubsection.4.2.4}%
+\contentsline {subsubsection}{\numberline {4.2.5}Stratified Splitting}{21}{subsubsection.4.2.5}%
+\contentsline {subsection}{\numberline {4.3}Baseline Model: TF-IDF with Logistic Regression}{22}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}Feature Engineering: Simple vs. Enhanced Modes}{22}{subsubsection.4.3.1}%
+\contentsline {subsubsection}{\numberline {4.3.2}Logistic Regression as the Classification Head}{25}{subsubsection.4.3.2}%
+\contentsline {subsubsection}{\numberline {4.3.3}Hyperparameter Optimization}{26}{subsubsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {4.3.4}Baseline Results: Simple Mode}{27}{subsubsection.4.3.4}%
+\contentsline {subsubsection}{\numberline {4.3.5}Baseline Results: Enhanced Mode}{28}{subsubsection.4.3.5}%
+\contentsline {subsubsection}{\numberline {4.3.6}Baseline Limitations and Motivation for Deep Learning}{31}{subsubsection.4.3.6}%
+\contentsline {subsection}{\numberline {4.4}Deep Learning Model: Fine-Tuned RoBERTa-Large}{33}{subsection.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.1}Transformer Architecture for Sequence Classification}{34}{subsubsection.4.4.1}%
+\contentsline {subsubsection}{\numberline {4.4.2}Tokenization and Input Representation}{35}{subsubsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {4.4.3}Class-Weighted Cross-Entropy Loss}{36}{subsubsection.4.4.3}%
+\contentsline {subsubsection}{\numberline {4.4.4}Training Configuration}{36}{subsubsection.4.4.4}%
+\contentsline {subsubsection}{\numberline {4.4.5}Training Loop Implementation Details}{38}{subsubsection.4.4.5}%
+\contentsline {subsubsection}{\numberline {4.4.6}RoBERTa-Large Results}{40}{subsubsection.4.4.6}%
+\contentsline {subsection}{\numberline {4.5}Comparative Analysis of All Models}{43}{subsection.4.5}%
+\contentsline {subsubsection}{\numberline {4.5.1}In-Distribution Performance Analysis}{44}{subsubsection.4.5.1}%
+\contentsline {subsubsection}{\numberline {4.5.2}Out-of-Distribution Generalization Analysis}{44}{subsubsection.4.5.2}%
+\contentsline {subsubsection}{\numberline {4.5.3}Feature Engineering vs. Transfer Learning: A Deeper Look}{45}{subsubsection.4.5.3}%
+\contentsline {subsubsection}{\numberline {4.5.4}Error Analysis and Failure Modes}{46}{subsubsection.4.5.4}%
+\contentsline {subsubsection}{\numberline {4.5.5}Impact of Class Distribution on Model Behaviour}{48}{subsubsection.4.5.5}%
+\contentsline {subsection}{\numberline {4.6}Performance Evaluation: Key Metrics and Their Interpretation}{49}{subsection.4.6}%
+\contentsline {subsubsection}{\numberline {4.6.1}Accuracy and Its Limitations}{49}{subsubsection.4.6.1}%
+\contentsline {subsubsection}{\numberline {4.6.2}Precision and Recall: The Security Trade-Off}{49}{subsubsection.4.6.2}%
+\contentsline {subsubsection}{\numberline {4.6.3}F1 Score: The Harmonic Mean}{50}{subsubsection.4.6.3}%
+\contentsline {subsubsection}{\numberline {4.6.4}ROC-AUC: Threshold-Independent Discrimination}{50}{subsubsection.4.6.4}%
+\contentsline {subsubsection}{\numberline {4.6.5}Average Precision: Precision--Recall Summary}{50}{subsubsection.4.6.5}%
+\contentsline {subsection}{\numberline {4.7}Production Serving Architecture}{51}{subsection.4.7}%
+\contentsline {subsubsection}{\numberline {4.7.1}FastAPI Middleware: Multi-Detector Architecture}{51}{subsubsection.4.7.1}%
+\contentsline {subsubsection}{\numberline {4.7.2}SQLite Chat History: Persistence Layer}{53}{subsubsection.4.7.2}%
+\contentsline {subsubsection}{\numberline {4.7.3}React Frontend: A/B Testing Interface}{53}{subsubsection.4.7.3}%
+\contentsline {subsubsection}{\numberline {4.7.4}Docker Containerization and Deployment}{54}{subsubsection.4.7.4}%
+\contentsline {subsection}{\numberline {4.8}Security Considerations and Threat Modelling}{55}{subsection.4.8}%
+\contentsline {subsubsection}{\numberline {4.8.1}Defence-in-Depth Architecture}{55}{subsubsection.4.8.1}%
+\contentsline {subsubsection}{\numberline {4.8.2}Adversarial Robustness Considerations}{55}{subsubsection.4.8.2}%
+\contentsline {subsubsection}{\numberline {4.8.3}Privacy and Data Handling}{56}{subsubsection.4.8.3}%
+\contentsline {subsection}{\numberline {4.9}Implication of Research Findings}{56}{subsection.4.9}%
+\contentsline {subsubsection}{\numberline {4.9.1}The Generalization Gap: A Central Challenge}{56}{subsubsection.4.9.1}%
+\contentsline {subsubsection}{\numberline {4.9.2}The Value of Transfer Learning for Security Applications}{57}{subsubsection.4.9.2}%
+\contentsline {subsubsection}{\numberline {4.9.3}Future Directions and Emerging Trends}{57}{subsubsection.4.9.3}%
+\contentsline {subsection}{\numberline {4.10}Cost-Benefit Analysis}{58}{subsection.4.10}%
+\contentsline {subsubsection}{\numberline {4.10.1}Computational Costs}{58}{subsubsection.4.10.1}%
+\contentsline {subsubsection}{\numberline {4.10.2}Benefits and Return on Investment}{59}{subsubsection.4.10.2}%
+\contentsline {subsubsection}{\numberline {4.10.3}Trade-Offs and Limitations}{60}{subsubsection.4.10.3}%
+\contentsline {subsection}{\numberline {4.11}User Experience and Acceptance}{60}{subsection.4.11}%
+\contentsline {subsubsection}{\numberline {4.11.1}Transparency as a Trust-Building Mechanism}{60}{subsubsection.4.11.1}%
+\contentsline {subsubsection}{\numberline {4.11.2}Responsiveness and Latency}{60}{subsubsection.4.11.2}%
+\contentsline {subsubsection}{\numberline {4.11.3}Addressing User Concerns}{61}{subsubsection.4.11.3}%
+\contentsline {subsection}{\numberline {4.12}Comparative Analysis: Traditional ML vs. Deep Learning vs. Hybrid Approaches}{62}{subsection.4.12}%
+\contentsline {subsection}{\numberline {4.13}Challenges Encountered}{63}{subsection.4.13}%
+\contentsline {section}{\numberline {5}Conclusions and Recommendations}{65}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Summary of Detailed Results}{65}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Recommendations for Prompt Injection Detection}{67}{subsection.5.2}%
+\contentsline {subsubsection}{\numberline {5.2.1}Recommendations}{67}{subsubsection.5.2.1}%
+\contentsline {subsubsection}{\numberline {5.2.2}Future Research Directions}{68}{subsubsection.5.2.2}%
+\contentsline {subsubsection}{\numberline {5.2.3}Summary}{68}{subsubsection.5.2.3}%
+\contentsline {subsection}{\numberline {5.3}Future Prospects and Ongoing Research}{69}{subsection.5.3}%
+\contentsline {section}{\numberline {6}References}{71}{section.6}%
